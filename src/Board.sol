@@ -189,6 +189,5 @@ contract Board {
         nodes[0x33].connections = 0x2f30ff;
         nodes[0x34].connections = 0x3031ff;
         nodes[0x35].connections = 0x3132ff;
-
     }
 }
