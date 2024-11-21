@@ -2,13 +2,14 @@
 pragma solidity 0.8.28;
 
 import "./Resources.sol";
+
 // import "hardhat/console.sol";
 // import "@openzeppelin/contracts/access/Ownable.sol";
 
 contract Board {
     Resources private _resources;
     bytes1 private constant MAX_NODE = 0xab;
-    uint8 constant MAX_PLAYERS = 4;
+    uint8 public constant MAX_PLAYERS = 4;
     uint8 private constant VICTORY_POINTS = 10;
     uint8 public currentThrow = 0;
     uint8 public currentPlayer = 0;
@@ -22,7 +23,10 @@ contract Board {
         Red,
         Yellow,
         Blue,
-        Green
+        Green,
+        Purple,
+        Orange,
+        Brown
     }
 
     enum NodeStatus {
@@ -51,7 +55,7 @@ contract Board {
         bytes3 connections;
     }
 
-    Player[] public _players;
+    Player[] public players;
 
     mapping(bytes6 => Hex) public hexes;
     mapping(bytes1 => Node) public nodes;
@@ -62,12 +66,15 @@ contract Board {
     }
 
     function joinPlayer(bytes32 name, Colours colour) public {
-        require(_players.length < MAX_PLAYERS, "Maximum players already");
-        require(msg.sender != address(_resources._bank()), "Bank may not be a player");
+        require(players.length < MAX_PLAYERS, "Maximum players already");
+        require(
+            msg.sender != address(_resources._bank()),
+            "Bank may not be a player"
+        );
         bool colourAvailable = true;
         bool isAvailable = true;
-        for (uint256 i = 0; i < _players.length; i++) {
-            Player memory player = _players[i];
+        for (uint256 i = 0; i < players.length; i++) {
+            Player memory player = players[i];
             if (player.name == name || player.ethAddress == msg.sender) {
                 isAvailable = false;
             }
@@ -78,49 +85,43 @@ contract Board {
         require(isAvailable, "Matching player already exists");
         require(colourAvailable, "Colour already chosen");
 
-        _players.push(Player(name, msg.sender, colour, 0, 0));
+        players.push(Player(name, msg.sender, colour, 0, 0));
     }
 
     function getPlayers() public view returns (Player[] memory) {
-        return _players;
-    }
-
-    function rollDice() public view returns (uint256) {
-        uint256 bts = block.timestamp;
-        uint256 bd = block.difficulty;
-        uint256 pl = _players.length;
-
-        return rollSingleDice(bd, bts, pl) + rollSingleDice(bts, pl, bd);
+        return players;
     }
 
     /*
-     * The below code is known to be insecure as timestamp and difficulty can be predicted or controlled by miners.
-     * The correct code would instead implement randomness from an external oracle
+     * The below code is known to be insecure as prevrandao can be known by miners.
+     * The correct code would instead implement randomness from an external VFR
      */
-    function rollSingleDice(
-        uint256 a,
-        uint256 b,
-        uint256 c
-    ) public pure returns (uint256) {
-        uint256 initialUint = uint256(keccak256(abi.encodePacked(a, b, c)));
-        uint256 roll = initialUint % 6;
-        if (roll == 0) roll = 6;
-        return roll;
+    function rollSingleDice() public view returns (uint256) {
+        return (block.prevrandao % 6) + 1;
+    }
+
+    function rollTwoDice()
+        public
+        view
+        returns (uint256 total, uint256 die1, uint256 die2)
+    {
+        die1 =
+            (uint256(keccak256(abi.encodePacked(block.prevrandao, "die1"))) %
+                6) +
+            1;
+        die2 =
+            (uint256(keccak256(abi.encodePacked(block.prevrandao, "die2"))) %
+                6) +
+            1;
+        total = die1 + die2;
     }
 
     function chooseStartingPlayer() public view returns (uint256) {
-        uint256 bestThrow = 0;
-        uint256 firstPlayer = 0;
-        for (uint256 i = 0; i < _players.length; i++) {
-            uint256 newRoll1 = rollSingleDice(block.difficulty, block.timestamp, i);
-            uint256 newRoll2 = rollSingleDice(i, block.difficulty, block.timestamp);
-            uint256 newRoll = newRoll1 + newRoll2;
-            if (newRoll > bestThrow) {
-                bestThrow = newRoll;
-                firstPlayer = i;
-            }
-        }
-        return firstPlayer;
+        require(players.length > 0, "Must have players");
+        return
+            uint256(
+                keccak256(abi.encodePacked(block.prevrandao, "startingPlayer"))
+            ) % players.length;
     }
 
     function nonRandomSetup() internal {

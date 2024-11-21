@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: UNLICENSED
-pragma solidity ^0.8.18;
+pragma solidity 0.8.28;
 
-import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
-import "@openzeppelin/contracts/access/AccessControl.sol";
 
-// Uncomment this line to use console.log
-// import "hardhat/console.sol";
+import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+
+import {AccessControl} from "@openzeppelin/contracts/access/AccessControl.sol";
+
 
 contract Resource is ERC20, AccessControl {
     constructor(
