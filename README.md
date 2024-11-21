@@ -1,66 +1,44 @@
-## Foundry
+# Blockchain Catan
 
-**Foundry is a blazing fast, portable and modular toolkit for Ethereum application development written in Rust.**
+The rules for Catan written in Solidity for EVM platforms. Application is under active development, with the intent to add a feature or rule per day.
 
-Foundry consists of:
+Application is written in Solidity version 0.8.18 and scaffolded with Foundry. To run checkout this repository and run it in Foundry. To test run `forge test`.
 
--   **Forge**: Ethereum testing framework (like Truffle, Hardhat and DappTools).
--   **Cast**: Swiss army knife for interacting with EVM smart contracts, sending transactions and getting chain data.
--   **Anvil**: Local Ethereum node, akin to Ganache, Hardhat Network.
--   **Chisel**: Fast, utilitarian, and verbose solidity REPL.
+## Features and rules
 
-## Documentation
-
-https://book.getfoundry.sh/
-
-## Usage
-
-### Build
-
-```shell
-$ forge build
-```
-
-### Test
-
-```shell
-$ forge test
-```
-
-### Format
-
-```shell
-$ forge fmt
-```
-
-### Gas Snapshots
-
-```shell
-$ forge snapshot
-```
-
-### Anvil
-
-```shell
-$ anvil
-```
-
-### Deploy
-
-```shell
-$ forge script script/Counter.s.sol:CounterScript --rpc-url <your_rpc_url> --private-key <your_private_key>
-```
-
-### Cast
-
-```shell
-$ cast <subcommand>
-```
-
-### Help
-
-```shell
-$ forge --help
-$ anvil --help
-$ cast --help
-```
+- ~~Players~~
+  - ~~Ability to join~~
+  - ~~Colours~~
+- ~~Dice roll~~
+- ~~Board initial structure and graph~~
+- Board resource generation assignment and randomisation
+  - Generate terrain/resources
+  - assign numbers for hexes
+- Road placement
+  - Must join to an existing player road
+- Settlement placement
+  - Cannot place within a space of another settlement
+  - Must place on your road
+  - Pricing
+- Initial settlement placement
+  - Randomise order of players
+  - First to last then last to first
+  - Lay road
+  - Second placement gets resources
+- City upgrading
+  - Must already be settlement
+  - Upgrade node
+  - Implement cost
+- Resource assignment on rolling
+- Resource cards
+  - Knight
+  - Monopoly
+  - Road building
+- Trading
+  - Bank trading
+  - Bank Trading with ports
+  - Human trading
+- Longest road (this one frightens me)
+  - check for new settlement breaking longest road
+- Largest army
+- Winning
