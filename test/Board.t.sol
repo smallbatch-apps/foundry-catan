@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity 0.8.28;
 
-import {Test} from "forge-std/Test.sol";
+import {Test, console} from "forge-std/Test.sol";
 import {Board} from "../src/Board.sol";
 import {Resources} from "../src/Resources.sol";
 
@@ -142,5 +142,30 @@ contract BoardTest is Test {
         uint256 startingPlayer = board.chooseStartingPlayer();
         assertGt(startingPlayer, 0);
         assertLt(startingPlayer, 2);
+    }
+
+    function testGenerateTerrainDistribution() public view {
+        Resources.ResourceTypes[] memory terrains = board
+            .generateTerrainDistribution();
+        assertEq(terrains.length, 19);
+
+        uint256[7] memory counts = countTerrainTypes(terrains);
+
+        assertEq(counts[0], 0);
+        assertEq(counts[1], 4);
+        assertEq(counts[2], 3);
+        assertEq(counts[3], 4);
+        assertEq(counts[4], 3);
+        assertEq(counts[5], 4);
+        assertEq(counts[6], 1);
+    }
+
+    function countTerrainTypes(
+        Resources.ResourceTypes[] memory terrains
+    ) internal pure returns (uint256[7] memory counts) {
+        for (uint i = 0; i < terrains.length; i++) {
+            counts[uint(terrains[i])]++;
+        }
+        return counts;
     }
 }

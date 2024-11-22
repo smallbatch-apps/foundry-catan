@@ -47,6 +47,7 @@ contract Board {
         Resources.ResourceTypes resourceType;
         bool hasRobber;
         uint8 roll;
+        bytes2 coordinates;
     }
 
     struct Node {
@@ -56,6 +57,28 @@ contract Board {
     }
 
     Player[] public players;
+
+    bytes6[19] public hexIds = [
+        bytes6(0x00030407080c),
+        bytes6(0x01040508090d),
+        bytes6(0x020506090a0e),
+        bytes6(0x070b0c101116),
+        bytes6(0x080c0d111217),
+        bytes6(0x090d0e121318),
+        bytes6(0x0a0e0f131419),
+        bytes6(0x1015161b1c21),
+        bytes6(0x1116171c1d22),
+        bytes6(0x1217181d1e23),
+        bytes6(0x1318191e1f24),
+        bytes6(0x14191a1f2025),
+        bytes6(0x1c212226272b),
+        bytes6(0x1d222327282c),
+        bytes6(0x1e232428292d),
+        bytes6(0x1f2425292a2e),
+        bytes6(0x272b2c2f3033),
+        bytes6(0x282c2d303134),
+        bytes6(0x292d2e313235)
+    ];
 
     mapping(bytes6 => Hex) public hexes;
     mapping(bytes1 => Node) public nodes;
@@ -190,5 +213,86 @@ contract Board {
         nodes[0x33].connections = 0x2f30ff;
         nodes[0x34].connections = 0x3031ff;
         nodes[0x35].connections = 0x3132ff;
+
+        hexes[0x00030407080c].coordinates = 0x0104;
+        hexes[0x01040508090d].coordinates = 0x0183;
+        hexes[0x020506090a0e].coordinates = 0x0202;
+
+        hexes[0x070b0c101116].coordinates = 0x0143;
+        hexes[0x080c0d111217].coordinates = 0x0141;
+        hexes[0x090d0e121318].coordinates = 0x0180;
+        hexes[0x0a0e0f131419].coordinates = 0x01C0;
+
+        hexes[0x1015161b1c21].coordinates = 0x0004;
+        hexes[0x1116171c1d22].coordinates = 0x0041;
+        hexes[0x1217181d1e23].coordinates = 0x0080;
+        hexes[0x1318191e1f24].coordinates = 0x00C1;
+        hexes[0x14191a1f2025].coordinates = 0x0100;
+
+        hexes[0x1c212226272b].coordinates = 0x0043;
+        hexes[0x1d222327282c].coordinates = 0x0081;
+        hexes[0x1e232428292d].coordinates = 0x00C1;
+        hexes[0x1f2425292a2e].coordinates = 0x0101;
+
+        hexes[0x272b2c2f3033].coordinates = 0x0042;
+        hexes[0x282c2d303134].coordinates = 0x0082;
+        hexes[0x292d2e313235].coordinates = 0x00C2;
+    }
+
+    function randomSetup() internal {
+        // assign random resources to hexes
+        // assign random rolls to hexes
+    }
+
+    function generateTerrainDistribution()
+        public
+        view
+        returns (Resources.ResourceTypes[] memory)
+    {
+        // assign random resources to hexes
+        // Create array with exact distribution
+        Resources.ResourceTypes[]
+            memory terrains = new Resources.ResourceTypes[](19);
+
+        // Fill with correct counts
+        uint8 index = 0;
+
+        // 4 each
+        for (uint8 i = 0; i < 4; i++) {
+            terrains[index++] = Resources.ResourceTypes.Wood;
+            terrains[index++] = Resources.ResourceTypes.Sheep;
+            terrains[index++] = Resources.ResourceTypes.Wheat;
+        }
+
+        // 3 each
+        for (uint8 i = 0; i < 3; i++) {
+            terrains[index++] = Resources.ResourceTypes.Brick;
+            terrains[index++] = Resources.ResourceTypes.Stone;
+        }
+
+        // 1 desert
+        terrains[index] = Resources.ResourceTypes.Desert;
+
+        // Now shuffle the array
+        for (uint8 i = 0; i < terrains.length; i++) {
+            uint256 j = uint256(
+                keccak256(abi.encodePacked(block.prevrandao, i))
+            ) % terrains.length;
+            // Swap elements
+            Resources.ResourceTypes temp = terrains[i];
+            terrains[i] = terrains[j];
+            terrains[j] = temp;
+        }
+
+        return terrains;
+    }
+
+    function assignResources() public {
+        Resources.ResourceTypes[]
+            memory terrains = generateTerrainDistribution();
+
+        for (uint i = 0; i < hexIds.length; i++) {
+            hexes[hexIds[i]].resourceType = terrains[i];
+        }
     }
 }

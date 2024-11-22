@@ -12,7 +12,7 @@ Application is written in Solidity version 0.8.18 and scaffolded with Foundry. T
 - ~~Dice roll~~
 - ~~Board initial structure and graph~~
 - Board resource generation assignment and randomisation
-  - Generate terrain/resources
+  - ~~Generate terrain/resources~~
   - assign numbers for hexes
 - Road placement
   - Must join to an existing player road
