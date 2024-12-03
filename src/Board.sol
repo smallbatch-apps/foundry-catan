@@ -15,6 +15,7 @@ contract Board {
     uint8 public currentPlayer = 0;
     bool public gameReady = false;
     bool public gameStarted = false;
+    bytes6 public desertHexId;
 
     uint8 public currentPlayerTurn;
     uint8 public currentSetupPlayer;
@@ -86,6 +87,8 @@ contract Board {
 
     constructor(address resources) {
         _resources = Resources(resources);
+        nonRandomSetup();
+        randomSetup();
     }
 
     function joinPlayer(bytes32 name, Colours colour) public {
@@ -239,8 +242,13 @@ contract Board {
         hexes[0x292d2e313235].coordinates = 0x00C2;
     }
 
+    function getHex(bytes6 hexId) public view returns (Hex memory) {
+        return hexes[hexId];
+    }
+
     function randomSetup() internal {
         // assign random resources to hexes
+        assignResources();
         // assign random rolls to hexes
     }
 
@@ -249,36 +257,28 @@ contract Board {
         view
         returns (Resources.ResourceTypes[] memory)
     {
-        // assign random resources to hexes
-        // Create array with exact distribution
         Resources.ResourceTypes[]
             memory terrains = new Resources.ResourceTypes[](19);
 
-        // Fill with correct counts
         uint8 index = 0;
 
-        // 4 each
         for (uint8 i = 0; i < 4; i++) {
             terrains[index++] = Resources.ResourceTypes.Wood;
             terrains[index++] = Resources.ResourceTypes.Sheep;
             terrains[index++] = Resources.ResourceTypes.Wheat;
         }
 
-        // 3 each
         for (uint8 i = 0; i < 3; i++) {
             terrains[index++] = Resources.ResourceTypes.Brick;
             terrains[index++] = Resources.ResourceTypes.Stone;
         }
 
-        // 1 desert
         terrains[index] = Resources.ResourceTypes.Desert;
 
-        // Now shuffle the array
         for (uint8 i = 0; i < terrains.length; i++) {
             uint256 j = uint256(
                 keccak256(abi.encodePacked(block.prevrandao, i))
             ) % terrains.length;
-            // Swap elements
             Resources.ResourceTypes temp = terrains[i];
             terrains[i] = terrains[j];
             terrains[j] = temp;
@@ -293,6 +293,111 @@ contract Board {
 
         for (uint i = 0; i < hexIds.length; i++) {
             hexes[hexIds[i]].resourceType = terrains[i];
+            if (terrains[i] == Resources.ResourceTypes.Desert) {
+                desertHexId = hexIds[i];
+            }
         }
+    }
+
+    function unpackHexCoordinates(
+        bytes2 packed
+    ) internal pure returns (int8 q, int8 r, int8 s) {
+        uint16 p = uint16(packed);
+        q = int8(int16((p >> 6) & 0x07)) - 2;
+        r = int8(int16((p >> 3) & 0x07)) - 2;
+        s = int8(int16(p & 0x07)) - 2;
+    }
+
+    function assignRolls() public {
+        uint8[] memory criticalNumbers = new uint8[](4);
+        criticalNumbers[0] = 6;
+        criticalNumbers[1] = 6;
+        criticalNumbers[2] = 8;
+        criticalNumbers[3] = 8;
+
+        bool boardComplete = false;
+
+        // moderately inefficient, but it will continually try to make a valid board
+        // in terms of the critical numbers not being adjacent to each other. It should
+        while (!boardComplete) {
+            bool[] memory usedHexes = new bool[](19); // All false by default
+            // Create shuffled copy of hexIds for this attempt
+            bytes6[] memory shuffledHexIds = new bytes6[](hexIds.length);
+            for (uint i = 0; i < hexIds.length; i++) {
+                shuffledHexIds[i] = hexIds[i];
+            }
+            for (uint i = 0; i < shuffledHexIds.length; i++) {
+                uint j = uint(
+                    keccak256(abi.encodePacked(block.prevrandao, i))
+                ) % shuffledHexIds.length;
+                bytes6 temp = shuffledHexIds[i];
+                shuffledHexIds[i] = shuffledHexIds[j];
+                shuffledHexIds[j] = temp;
+            }
+            // Attempt to place all critical numbers
+            bool placementValid = true;
+            for (uint i = 0; i < criticalNumbers.length; i++) {
+                bool numberPlaced = false;
+                for (uint j = 0; j < shuffledHexIds.length; j++) {
+                    if (shuffledHexIds[j] == desertHexId || usedHexes[j]) {
+                        continue;
+                    }
+
+                    if (!hasAdjacentCriticalNumbers(shuffledHexIds[j])) {
+                        hexes[shuffledHexIds[j]].roll = criticalNumbers[i];
+                        usedHexes[j] = true;
+                        numberPlaced = true;
+                        break;
+                    }
+                }
+
+                if (!numberPlaced) {
+                    placementValid = false;
+                    break;
+                }
+            }
+
+            boardComplete = placementValid;
+        }
+    }
+
+    function hasAdjacentCriticalNumbers(
+        bytes6 hexId
+    ) internal view returns (bool) {
+        for (uint i = 0; i < hexIds.length; i++) {
+            bytes6 otherHexId = hexIds[i];
+            if (otherHexId == hexId) continue;
+
+            // Check if this current hex has a 6 or 8 and is adjacent to the other hex
+            if (
+                (hexes[otherHexId].roll == 6 || hexes[otherHexId].roll == 8) &&
+                checkAdjacency(hexId, otherHexId)
+            ) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    // Checks if two hexes are adjacent by checking if the sum of the absolute
+    // differences in their coordinates is 2 - this is a key feature of cube co-ordinates
+    function checkAdjacency(
+        bytes6 hexId1,
+        bytes6 hexId2
+    ) public view returns (bool) {
+        bytes2 coords1 = hexes[hexId1].coordinates;
+        bytes2 coords2 = hexes[hexId2].coordinates;
+        (int8 q1, int8 r1, int8 s1) = unpackHexCoordinates(coords1);
+        (int8 q2, int8 r2, int8 s2) = unpackHexCoordinates(coords2);
+
+        int8 dq = abs(q1 - q2);
+        int8 dr = abs(r1 - r2);
+        int8 ds = abs(s1 - s2);
+
+        return (dq + dr + ds) == 2;
+    }
+
+    function abs(int8 x) internal pure returns (int8) {
+        return x >= 0 ? x : -int8(x);
     }
 }
