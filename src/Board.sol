@@ -4,21 +4,26 @@ pragma solidity 0.8.28;
 import "./Resources.sol";
 
 // import "hardhat/console.sol";
-// import "@openzeppelin/contracts/access/Ownable.sol";
+import "@openzeppelin/contracts/access/Ownable.sol";
 
-contract Board {
+contract Board is Ownable {
     Resources private _resources;
-    bytes1 private constant MAX_NODE = 0xab;
-    uint8 public constant MAX_PLAYERS = 4;
-    uint8 private constant VICTORY_POINTS = 10;
+
     uint8 public currentThrow = 0;
-    uint8 public currentPlayer = 0;
+    address public currentPlayer = address(0);
     bool public gameReady = false;
     bool public gameStarted = false;
     bytes6 public desertHexId;
 
     uint8 public currentPlayerTurn;
     uint8 public currentSetupPlayer;
+
+    bytes1 private constant MAX_NODE = 0xab;
+    uint8 public constant MAX_PLAYERS = 4;
+    uint8 private constant VICTORY_POINTS = 10;
+    uint8 public constant MAX_SETTLEMENTS_PER_PLAYER = 5;
+    uint8 public constant MAX_CITIES_PER_PLAYER = 4;
+    uint8 public constant MAX_ROADS_PER_PLAYER = 15;
 
     enum Colours {
         Red,
@@ -42,6 +47,9 @@ contract Board {
         Colours colour;
         uint8 victoryPoints;
         uint8 privateVictoryPoints;
+        uint8 roadCount;
+        uint8 settlementCount;
+        uint8 cityCount;
     }
 
     struct Hex {
@@ -52,12 +60,13 @@ contract Board {
     }
 
     struct Node {
-        bytes1 playerId;
+        address playerAddress;
         NodeStatus status;
         bytes3 connections;
     }
 
-    Player[] public players;
+    mapping(address => Player) public players;
+    address[] public playerAddresses;
 
     bytes6[19] public hexIds = [
         bytes6(0x00030407080c),
@@ -83,24 +92,25 @@ contract Board {
 
     mapping(bytes6 => Hex) public hexes;
     mapping(bytes1 => Node) public nodes;
-    mapping(bytes2 => bytes1) public roads;
+    mapping(bytes2 => address) public roads;
+    mapping(uint8 => bytes6[]) public rollToHexes;
 
-    constructor(address resources) {
+    constructor(address resources) Ownable(msg.sender) {
         _resources = Resources(resources);
         nonRandomSetup();
         randomSetup();
     }
 
     function joinPlayer(bytes32 name, Colours colour) public {
-        require(players.length < MAX_PLAYERS, "Maximum players already");
         require(
-            msg.sender != address(_resources._bank()),
-            "Bank may not be a player"
+            playerAddresses.length < MAX_PLAYERS,
+            "Maximum players already"
         );
+        require(msg.sender != _resources.bank(), "Bank may not be a player");
         bool colourAvailable = true;
         bool isAvailable = true;
-        for (uint256 i = 0; i < players.length; i++) {
-            Player memory player = players[i];
+        for (uint256 i = 0; i < playerAddresses.length; i++) {
+            Player memory player = players[playerAddresses[i]];
             if (player.name == name || player.ethAddress == msg.sender) {
                 isAvailable = false;
             }
@@ -111,11 +121,19 @@ contract Board {
         require(isAvailable, "Matching player already exists");
         require(colourAvailable, "Colour already chosen");
 
-        players.push(Player(name, msg.sender, colour, 0, 0));
+        // set approval for the board to act as an ERC1155 operator
+        _resources.setApprovalForAll(address(this), true);
+
+        players[msg.sender] = Player(name, msg.sender, colour, 0, 0, 0, 0, 0);
+        playerAddresses.push(msg.sender);
     }
 
     function getPlayers() public view returns (Player[] memory) {
-        return players;
+        Player[] memory result = new Player[](playerAddresses.length);
+        for (uint256 i = 0; i < playerAddresses.length; i++) {
+            result[i] = players[playerAddresses[i]];
+        }
+        return result;
     }
 
     /*
@@ -143,11 +161,11 @@ contract Board {
     }
 
     function chooseStartingPlayer() public view returns (uint256) {
-        require(players.length > 0, "Must have players");
+        require(playerAddresses.length > 0, "Must have players");
         return
             uint256(
                 keccak256(abi.encodePacked(block.prevrandao, "startingPlayer"))
-            ) % players.length;
+            ) % playerAddresses.length;
     }
 
     function nonRandomSetup() internal {
@@ -246,10 +264,21 @@ contract Board {
         return hexes[hexId];
     }
 
+    function getAllHexes() public view returns (Hex[] memory) {
+        Hex[] memory result = new Hex[](19);
+        for (uint i = 0; i < 19; i++) {
+            result[i] = hexes[hexIds[i]];
+        }
+        return result;
+    }
+
     function randomSetup() internal {
         // assign random resources to hexes
         assignResources();
+
         // assign random rolls to hexes
+        assignCriticalRolls();
+        assignNonCriticalRolls();
     }
 
     function generateTerrainDistribution()
@@ -308,7 +337,22 @@ contract Board {
         s = int8(int16(p & 0x07)) - 2;
     }
 
-    function assignRolls() public {
+    function unpackHexNodes(
+        bytes6 hexId
+    ) public pure returns (bytes1[] memory) {
+        bytes1[] memory surroundingNodes = new bytes1[](6);
+
+        surroundingNodes[0] = bytes1(hexId[0]);
+        surroundingNodes[1] = bytes1(hexId[1]);
+        surroundingNodes[2] = bytes1(hexId[2]);
+        surroundingNodes[3] = bytes1(hexId[3]);
+        surroundingNodes[4] = bytes1(hexId[4]);
+        surroundingNodes[5] = bytes1(hexId[5]);
+
+        return surroundingNodes;
+    }
+
+    function assignCriticalRolls() public {
         uint8[] memory criticalNumbers = new uint8[](4);
         criticalNumbers[0] = 6;
         criticalNumbers[1] = 6;
@@ -347,6 +391,7 @@ contract Board {
                         hexes[shuffledHexIds[j]].roll = criticalNumbers[i];
                         usedHexes[j] = true;
                         numberPlaced = true;
+                        rollToHexes[criticalNumbers[i]].push(shuffledHexIds[j]);
                         break;
                     }
                 }
@@ -399,5 +444,380 @@ contract Board {
 
     function abs(int8 x) internal pure returns (int8) {
         return x >= 0 ? x : -int8(x);
+    }
+
+    function assignNonCriticalRolls() public {
+        uint8[] memory numbers = new uint8[](14);
+        numbers[0] = 2;
+        numbers[1] = 3;
+        numbers[2] = 3;
+        numbers[3] = 4;
+        numbers[4] = 4;
+        numbers[5] = 5;
+        numbers[6] = 5;
+        numbers[7] = 9;
+        numbers[8] = 9;
+        numbers[9] = 10;
+        numbers[10] = 10;
+        numbers[11] = 11;
+        numbers[12] = 11;
+        numbers[13] = 12;
+
+        // randomise the numbers
+        for (uint i = 0; i < numbers.length; i++) {
+            uint j = uint(keccak256(abi.encodePacked(block.prevrandao, i))) %
+                numbers.length;
+            uint8 temp = numbers[i];
+            numbers[i] = numbers[j];
+            numbers[j] = temp;
+        }
+
+        uint8 currentNumberIndex = 0;
+
+        // loop over the hexes and assign the numbers
+        for (uint i = 0; i < hexIds.length; i++) {
+            if (hexes[hexIds[i]].roll != 0) continue;
+            if (hexes[hexIds[i]].resourceType == Resources.ResourceTypes.Desert)
+                continue;
+
+            hexes[hexIds[i]].roll = numbers[currentNumberIndex];
+            rollToHexes[numbers[currentNumberIndex]].push(hexIds[i]);
+            currentNumberIndex++;
+        }
+    }
+
+    function unpackConnections(
+        bytes3 packed
+    ) public pure returns (bytes1[] memory) {
+        bool isIncomplete = packed[2] == 0xFF;
+        bytes1[] memory result = new bytes1[](isIncomplete ? 2 : 3);
+        result[0] = packed[0];
+        result[1] = packed[1];
+        if (!isIncomplete) {
+            result[2] = packed[2];
+        }
+        return result;
+    }
+
+    function placeRoad(bytes2 roadId) public onlyCurrentPlayer {
+        require(checkRoadIsValid(roadId), "Invalid road");
+        require(checkRoadIsAvailable(roadId), "Road already placed");
+        require(
+            checkRoadOriginIsPlayerOwned(roadId),
+            "Road origin is not player owned"
+        );
+        require(
+            checkPlayerHasRoadsAvailable(msg.sender),
+            "Player has run out of roads"
+        );
+        require(
+            checkPlayerHasResourcesForRoad(msg.sender),
+            "Player does not have resources for road"
+        );
+
+        _resources.buyRoad();
+        roads[roadId] = msg.sender;
+        players[msg.sender].roadCount++;
+    }
+
+    function placeSettlement(bytes1 nodeId) public onlyCurrentPlayer {
+        require(checkSettlementIsValid(nodeId), "Invalid settlement");
+        require(
+            checkSettlementIsAvailable(nodeId),
+            "Settlement already placed"
+        );
+        require(checkSettlementOnRoad(nodeId), "Settlement not on road");
+        require(
+            checkPlayerHasResourcesForSettlement(msg.sender),
+            "Player does not have resources for settlement"
+        );
+        require(
+            checkPlayerHasSettlementsAvailable(msg.sender),
+            "Player has run out of settlements"
+        );
+        require(
+            checkSettlementIsNotTooClose(nodeId),
+            "Settlement is too close to another settlement"
+        );
+
+        _resources.buySettlement();
+
+        nodes[nodeId].playerAddress = msg.sender;
+        nodes[nodeId].status = NodeStatus.HasSettlement;
+
+        players[msg.sender].settlementCount++;
+        players[msg.sender].victoryPoints++;
+        players[msg.sender].privateVictoryPoints++;
+    }
+
+    function placeCity(bytes1 nodeId) public onlyCurrentPlayer {
+        require(checkCityIsSettlement(nodeId), "Node is not a settlement");
+        require(
+            checkPlayerHasCitiesAvailable(msg.sender),
+            "Player has run out of cities"
+        );
+        require(
+            checkPlayerHasResourcesForCity(msg.sender),
+            "Player does not have resources for city"
+        );
+
+        _resources.buyCity();
+
+        nodes[nodeId].status = NodeStatus.HasCity;
+        players[msg.sender].cityCount++;
+        players[msg.sender].settlementCount--;
+        players[msg.sender].victoryPoints++;
+        players[msg.sender].privateVictoryPoints++;
+    }
+
+    // ROAD CHECKS
+
+    function checkRoadIsValid(bytes2 roadId) public view returns (bool) {
+        // a road value of 0 is invalid
+        if (roadId == 0x0000) return false;
+        // the largest road id is 0x3535
+        if (roadId > 0x3535) return false;
+
+        bytes1 node = roadId[0];
+
+        bytes1[] memory connections = unpackConnections(
+            nodes[node].connections
+        );
+
+        for (uint i = 0; i < connections.length; i++) {
+            if (connections[i] == roadId[1]) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    function checkRoadOriginIsPlayerOwned(
+        bytes2 roadId
+    ) public view returns (bool) {
+        bytes1 node1 = roadId[0];
+        bytes1 node2 = roadId[1];
+
+        // if the player has a settlement or city on either node, then the road is valid
+        if (nodes[node1].playerAddress == msg.sender) return true;
+        if (nodes[node2].playerAddress == msg.sender) return true;
+
+        bytes1[] memory connections1 = unpackConnections(
+            nodes[node1].connections
+        );
+
+        for (uint i = 0; i < connections1.length; i++) {
+            bytes2 existingRoadId = packRoadId(node1, connections1[i]);
+            if (
+                roads[existingRoadId] == msg.sender &&
+                nodes[node1].playerAddress == address(0)
+            ) {
+                return true;
+            }
+        }
+
+        bytes1[] memory connections2 = unpackConnections(
+            nodes[node2].connections
+        );
+
+        for (uint i = 0; i < connections2.length; i++) {
+            bytes2 existingRoadId = packRoadId(node2, connections2[i]);
+            if (
+                roads[existingRoadId] == msg.sender &&
+                nodes[node2].playerAddress == address(0)
+            ) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    function packRoadId(
+        bytes1 node1,
+        bytes1 node2
+    ) internal pure returns (bytes2) {
+        if (node1 < node2) {
+            return bytes2(abi.encodePacked(node1, node2));
+        } else {
+            return bytes2(abi.encodePacked(node2, node1));
+        }
+    }
+
+    function checkRoadIsAvailable(bytes2 roadId) public view returns (bool) {
+        return roads[roadId] == address(0);
+    }
+
+    function checkPlayerHasRoadsAvailable(
+        address playerAddress
+    ) public view returns (bool) {
+        return players[playerAddress].roadCount < MAX_ROADS_PER_PLAYER;
+    }
+
+    function checkPlayerHasSettlementsAvailable(
+        address playerAddress
+    ) public view returns (bool) {
+        return
+            players[playerAddress].settlementCount < MAX_SETTLEMENTS_PER_PLAYER;
+    }
+
+    function isCurrentPlayerTurn(address player) public view returns (bool) {
+        return player == currentPlayer && gameStarted;
+    }
+
+    function checkPlayerHasResourcesForCard(
+        address player
+    ) public view returns (bool) {
+        return
+            _resources.balanceOf(
+                player,
+                uint256(Resources.ResourceTypes.Stone)
+            ) >=
+            1 &&
+            _resources.balanceOf(
+                player,
+                uint256(Resources.ResourceTypes.Wheat)
+            ) >=
+            1 &&
+            _resources.balanceOf(
+                player,
+                uint256(Resources.ResourceTypes.Sheep)
+            ) >=
+            1;
+    }
+
+    function checkPlayerHasResourcesForCity(
+        address player
+    ) public view returns (bool) {
+        return
+            _resources.balanceOf(
+                player,
+                uint256(Resources.ResourceTypes.Stone)
+            ) >=
+            3 &&
+            _resources.balanceOf(
+                player,
+                uint256(Resources.ResourceTypes.Wheat)
+            ) >=
+            2;
+    }
+
+    function checkPlayerHasResourcesForSettlement(
+        address player
+    ) public view returns (bool) {
+        return
+            _resources.balanceOf(
+                player,
+                uint256(Resources.ResourceTypes.Wood)
+            ) >=
+            1 &&
+            _resources.balanceOf(
+                player,
+                uint256(Resources.ResourceTypes.Brick)
+            ) >=
+            1 &&
+            _resources.balanceOf(
+                player,
+                uint256(Resources.ResourceTypes.Wheat)
+            ) >=
+            1 &&
+            _resources.balanceOf(
+                player,
+                uint256(Resources.ResourceTypes.Sheep)
+            ) >=
+            1;
+    }
+
+    function checkPlayerHasResourcesForRoad(
+        address player
+    ) public view returns (bool) {
+        return
+            _resources.balanceOf(
+                player,
+                uint256(Resources.ResourceTypes.Wood)
+            ) >=
+            1 &&
+            _resources.balanceOf(
+                player,
+                uint256(Resources.ResourceTypes.Brick)
+            ) >=
+            1;
+    }
+
+    function checkSettlementIsValid(bytes1 nodeId) public pure returns (bool) {
+        return nodeId <= 0x35;
+    }
+
+    function checkSettlementIsAvailable(
+        bytes1 nodeId
+    ) public view returns (bool) {
+        return nodes[nodeId].playerAddress == address(0);
+    }
+
+    function checkSettlementIsNotTooClose(
+        bytes1 nodeId
+    ) public view returns (bool) {
+        bytes1[] memory connections = unpackConnections(
+            nodes[nodeId].connections
+        );
+
+        for (uint i = 0; i < connections.length; i++) {
+            if (nodes[connections[i]].playerAddress != address(0)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    function checkSettlementOnRoad(bytes1 nodeId) public view returns (bool) {
+        bytes1[] memory connections = unpackConnections(
+            nodes[nodeId].connections
+        );
+
+        // loop over roads from this node and check if they are owned by the player
+        for (uint i = 0; i < connections.length; i++) {
+            bytes2 testRoadId = packRoadId(nodeId, connections[i]);
+            if (roads[testRoadId] == msg.sender) {
+                return true;
+            }
+        }
+
+        // none are owned by the player
+        return false;
+    }
+
+    function checkPlayerHasCitiesAvailable(
+        address playerAddress
+    ) public view returns (bool) {
+        return players[playerAddress].cityCount < MAX_CITIES_PER_PLAYER;
+    }
+
+    function checkCityIsSettlement(bytes1 nodeId) public view returns (bool) {
+        return
+            nodes[nodeId].status == NodeStatus.HasSettlement &&
+            nodes[nodeId].playerAddress == msg.sender;
+    }
+
+    function isPlayer(address player) public view returns (bool) {
+        return players[player].ethAddress != address(0);
+    }
+
+    // TEST HELPER FUNCTIONS
+    function _testPlaceRoad(bytes2 roadId, address player) public onlyOwner {
+        roads[roadId] = player;
+    }
+
+    function _testPlaceSettlement(
+        bytes1 nodeId,
+        address player
+    ) public onlyOwner {
+        nodes[nodeId].playerAddress = player;
+        nodes[nodeId].status = NodeStatus.HasSettlement;
+    }
+
+    modifier onlyCurrentPlayer() {
+        require(isCurrentPlayerTurn(msg.sender), "Not your turn");
+        _;
     }
 }

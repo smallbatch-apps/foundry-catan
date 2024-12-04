@@ -11,25 +11,32 @@ Application is written in Solidity version 0.8.18 and scaffolded with Foundry. T
   - ~~Colours~~
 - ~~Dice roll~~
 - ~~Board initial structure and graph~~
-- Board resource generation assignment and randomisation
+- ~~Board resource generation assignment and randomisation~~
   - ~~Generate terrain/resources~~
-  - assign numbers for hexes
-- Road placement
-  - Must join to an existing player road
-- Settlement placement
-  - Cannot place within a space of another settlement
-  - Must place on your road
-  - Pricing
+  - ~~assign numbers for hexes~~
+- ~~Road placement~~
+  - ~~Must join to an existing player road~~
+  - ~~Must transfer resources to bank~~
+  - ~~Must be connected to a settlement or road~~
+  - ~~Cannot be placed on an edge blocked by opponent~~
+- ~~Settlement placement~~
+  - ~~Cannot place within a space of another settlement~~
+  - ~~Must place on your road~~
+  - ~~Must have the resources~~
+  - ~~Cannot have more than 5 settlements~~
+- ~~City upgrading~~
+  - ~~Must already be settlement~~
+  - ~~cannot have more than 4 cities~~
+  - ~~Upgrade node~~
+  - ~~Implement cost~~
 - Initial settlement placement
   - Randomise order of players
   - First to last then last to first
   - Lay road
   - Second placement gets resources
-- City upgrading
-  - Must already be settlement
-  - Upgrade node
-  - Implement cost
 - Resource assignment on rolling
+  - Assign resources to players based on dice roll
+  - Robber prevents settlement gaining resources
 - Resource cards
   - Knight
   - Monopoly
