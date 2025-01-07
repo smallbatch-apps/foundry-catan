@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity 0.8.28;
 
-import {Test, console} from "forge-std/Test.sol";
+import {Test} from "forge-std/Test.sol";
+import {console2} from "forge-std/console2.sol";
 import {Board} from "../src/Board.sol";
 import {Resources} from "../src/Resources.sol";
 
@@ -9,8 +10,15 @@ contract BoardTest is Test {
     Board board;
     Resources resources;
     address bank;
+    uint256 public seed;
 
     function setUp() public {
+        string[] memory cmds = new string[](1);
+        cmds[0] = "./generate_seed.sh";
+        bytes memory result = vm.ffi(cmds);
+
+        vm.prevrandao(bytes32(result));
+
         bank = makeAddr("bank");
         resources = new Resources(bank);
         board = new Board(address(resources)); // This deploys a fresh contract for each test
@@ -21,17 +29,16 @@ contract BoardTest is Test {
 
     function testInitialState() public view {
         assertEq(board.MAX_PLAYERS(), 4, "Incorrect max players");
-        assertEq(board.currentThrow(), 0, "Current throw is not 0");
+        assertEq(board.lastRoll(), 0, "Current throw is not 0");
         assertEq(board.currentPlayer(), address(0), "Current player is not 0");
         assertEq(board.gameReady(), false, "Game is not ready");
-        assertEq(board.gameStarted(), false, "Game is not started");
+
         assertEq(board.currentPlayerTurn(), 0, "Current player turn is not 0");
         assertEq(
             board.currentSetupPlayer(),
             0,
             "Current setup player is not 0"
         );
-        assertEq(board.currentThrow(), 0);
     }
 
     function testBasicPlayerJoin() public {
@@ -56,11 +63,6 @@ contract BoardTest is Test {
             0,
             "Incorrect player victory points"
         );
-        assertEq(
-            players[0].privateVictoryPoints,
-            0,
-            "Incorrect player private victory points"
-        );
     }
 
     function testBankCannotJoin() public {
@@ -84,7 +86,7 @@ contract BoardTest is Test {
         board.joinPlayer("Bob", Board.Colours.Blue);
 
         vm.prank(makeAddr("charlie"));
-        board.joinPlayer("Charlie", Board.Colours.Green);
+        board.joinPlayer("Charlie", Board.Colours.White);
 
         vm.prank(makeAddr("dave"));
         board.joinPlayer("Dave", Board.Colours.Yellow);
@@ -134,19 +136,16 @@ contract BoardTest is Test {
     }
 
     function testTwoDiceRandomness() public {
-        (uint256 total, uint256 die1, uint256 die2) = board.rollTwoDice();
-        uint256 sumTotal = total;
-        uint256 sumDie1 = die1;
-        uint256 sumDie2 = die2;
+        (uint8 total, uint8 die1, uint8 die2) = board.rollTwoDice();
+        uint8 sumTotal = total;
+        uint8 sumDie1 = die1;
+        uint8 sumDie2 = die2;
 
         for (uint i = 0; i < 5; i++) {
             vm.roll(block.number + i + 1);
             vm.prevrandao(bytes32(uint256(i + 100)));
-            (
-                uint256 totalReroll,
-                uint256 die1Reroll,
-                uint256 die2Reroll
-            ) = board.rollTwoDice();
+            (uint8 totalReroll, uint8 die1Reroll, uint8 die2Reroll) = board
+                .rollTwoDice();
             sumTotal += totalReroll;
             sumDie1 += die1Reroll;
             sumDie2 += die2Reroll;
@@ -170,18 +169,21 @@ contract BoardTest is Test {
     }
 
     function testChooseStartingPlayer() public {
+        vm.prank(makeAddr("alice"));
         board.joinPlayer("Alice", Board.Colours.Red);
 
         vm.prank(makeAddr("bob"));
         board.joinPlayer("Bob", Board.Colours.Blue);
         uint256 startingPlayer = board.chooseStartingPlayer();
-        assertGt(startingPlayer, 0, "Starting player is not greater than 0");
         assertLt(startingPlayer, 2, "Starting player is not less than 2");
     }
 
     function testGenerateTerrainDistribution() public view {
+        // First distribution
+
         Resources.ResourceTypes[] memory terrains = board
             .generateTerrainDistribution();
+
         assertEq(terrains.length, 19);
 
         uint256[7] memory counts = countTerrainTypes(terrains);
@@ -243,7 +245,9 @@ contract BoardTest is Test {
         );
     }
 
-    function testCriticalNumberPlacement() public view {
+    function testCriticalNumberPlacement() public {
+        board.generateRolls();
+
         uint count6 = 0;
         uint count8 = 0;
 
@@ -260,24 +264,34 @@ contract BoardTest is Test {
         assertEq(count8, 2, "Should have exactly two 8s");
     }
 
-    function testCompleteRollAssignment() public view {
+    function testCompleteRollAssignment() public {
+        board.generateRolls();
+
         // Count all numbers
         uint[] memory counts = new uint[](13);
-
         Board.Hex[] memory allHexes = board.getAllHexes();
-
-        for (uint i = 0; i < allHexes.length; i++) {
-            console.log("Hex", i);
-            console.log("Resource Type", uint(allHexes[i].resourceType));
-            console.log("Has Robber", allHexes[i].hasRobber);
-            console.log("Roll", allHexes[i].roll);
-            console.log("");
-        }
 
         for (uint i = 0; i < allHexes.length; i++) {
             counts[allHexes[i].roll]++;
         }
 
+        // hacked this into place to generate some output to paste into ui to check representation of board
+        bool logBoardState = true;
+        if (logBoardState) {
+            console2.log("=== BOARD STATE ===");
+            for (uint i = 0; i < allHexes.length; i++) {
+                console2.log("{");
+                console2.log(
+                    "  resourceType:",
+                    uint(allHexes[i].resourceType),
+                    ","
+                );
+
+                console2.log("  roll:", allHexes[i].roll, ",");
+                console2.log("  hasRobber:", allHexes[i].hasRobber);
+                console2.log("},");
+            }
+        }
         // Verify counts
         assertEq(counts[0], 1, "Should have one 0");
         assertEq(counts[1], 0, "Should have no 1s");
@@ -441,5 +455,123 @@ contract BoardTest is Test {
             board.checkCityIsSettlement(0x1b),
             "Node is not a settlement"
         );
+    }
+
+    function testUnpackNodes() public view {
+        bytes1[6] memory unpackedNodes = board.unpackHexNodes(0x1217181d1e23);
+        assertEq(unpackedNodes.length, 6, "Should have six nodes");
+        assertEq(unpackedNodes[0], bytes1(0x12), "First byte is incorrect");
+        assertEq(unpackedNodes[1], bytes1(0x17), "Second byte is incorrect");
+        assertEq(unpackedNodes[2], bytes1(0x18), "Third byte is incorrect");
+        assertEq(unpackedNodes[3], bytes1(0x1d), "Fourth byte is incorrect");
+        assertEq(unpackedNodes[4], bytes1(0x1e), "Fifth byte is incorrect");
+        assertEq(unpackedNodes[5], bytes1(0x23), "Sixth byte is incorrect");
+    }
+
+    function testGetResourcesForEmptyHex() public view {
+        (address[] memory playerFound, uint8[] memory counts) = board
+            .getResourcesForHex(0x1217181d1e23);
+
+        assertEq(playerFound.length, 0, "There are no cities or settlements");
+        assertEq(counts.length, 0, "There are no cities or settlements");
+    }
+
+    function testGetResourcesForHex() public {
+        address player1 = makeAddr("alice");
+        address player2 = makeAddr("bob");
+
+        board._testPlaceSettlement(0x12, player1);
+        board._testPlaceSettlement(0x1e, player2);
+
+        (address[] memory playerFound, uint8[] memory counts) = board
+            .getResourcesForHex(0x1217181d1e23);
+
+        assertEq(
+            playerFound.length,
+            2,
+            "There should be two cities or settlements"
+        );
+        assertEq(counts.length, 2, "There should be two cities or settlements");
+
+        assertEq(playerFound[0], player1, "First player should be player1");
+        assertEq(playerFound[1], player2, "Second player should be player2");
+        assertEq(counts[0], 1, "First count should be 1");
+        assertEq(counts[1], 1, "Second count should be 1");
+    }
+
+    function testGetResourcesForHexWithCity() public {
+        address player1 = makeAddr("alice");
+
+        board._testPlaceCity(0x12, player1);
+        board._testPlaceSettlement(0x1e, player1);
+
+        (address[] memory playerFound, uint8[] memory counts) = board
+            .getResourcesForHex(0x1217181d1e23);
+
+        assertEq(
+            playerFound.length,
+            2,
+            "There should be two players - duplicates are allowed"
+        );
+        assertEq(counts.length, 2, "There should be two entries");
+        assertEq(playerFound[0], player1, "Player should be player1");
+        assertEq(playerFound[1], player1, "Player should be player1");
+
+        assertEq(counts[0], 2, "Count should be 2 - city");
+        assertEq(counts[1], 1, "Count should be 1 - settlement");
+    }
+
+    function testRequestTrade() public {
+        address alice = makeAddr("alice");
+        address bob = makeAddr("bob");
+        address charlie = makeAddr("charlie");
+
+        vm.prank(alice);
+        board.joinPlayer("Alice", Board.Colours.Red);
+        vm.prank(bob);
+        board.joinPlayer("Bob", Board.Colours.Blue);
+        vm.prank(charlie);
+        board.joinPlayer("Charlie", Board.Colours.White);
+
+        // Give Alice her resources (sheep and wheat)
+        vm.prank(bank);
+        resources.safeTransferFrom(
+            bank,
+            alice,
+            uint256(Resources.ResourceTypes.Sheep),
+            1,
+            ""
+        );
+        vm.prank(bank);
+        resources.safeTransferFrom(
+            bank,
+            alice,
+            uint256(Resources.ResourceTypes.Wheat),
+            1,
+            ""
+        );
+
+        // Give Bob a brick
+        vm.prank(bank);
+        resources.safeTransferFrom(
+            bank,
+            bob,
+            uint256(Resources.ResourceTypes.Brick),
+            1,
+            ""
+        );
+
+        // Create array of players to offer trade to
+        address[] memory tradePlayers = new address[](2);
+        tradePlayers[0] = bob;
+        tradePlayers[1] = charlie;
+
+        // Create trade offer: 1 sheep + 1 wheat for 1 brick
+        bytes5 offers = bytes5(0x0100000001); // [0,0,1,1,0] - sheep and wheat
+        bytes5 requests = bytes5(0x0001000000); // [1,0,0,0,0] - brick
+        vm.prank(alice);
+        emit Board.TradeRequested(bob, offers, requests);
+        bool success = board.requestTrade(tradePlayers, offers, requests);
+        assertTrue(success, "Trade request should succeed");
     }
 }

@@ -29,23 +29,32 @@ Application is written in Solidity version 0.8.18 and scaffolded with Foundry. T
   - ~~cannot have more than 4 cities~~
   - ~~Upgrade node~~
   - ~~Implement cost~~
-- Initial settlement placement
-  - Randomise order of players
-  - First to last then last to first
-  - Lay road
-  - Second placement gets resources
-- Resource assignment on rolling
-  - Assign resources to players based on dice roll
-  - Robber prevents settlement gaining resources
-- Resource cards
-  - Knight
-  - Monopoly
-  - Road building
-- Trading
-  - Bank trading
-  - Bank Trading with ports
-  - Human trading
-- Longest road (this one frightens me)
-  - check for new settlement breaking longest road
-- Largest army
-- Winning
+- ~~Resource assignment on rolling~~
+  - ~~Assign resources to players based on dice roll~~
+  - ~~Robber prevents settlement gaining resources~~
+- ~~Initial settlement placement~~
+  - ~~Randomise order of players~~
+  - ~~First to last then last to first~~
+  - ~~Lay road~~
+  - ~~Second placement gets resources~~
+- ~~Trading~~
+  - ~~Bank trading~~
+  - ~~Bank Trading with ports~~
+  - ~~Human trading~~
+- ~~Rolling the robber~~
+  - ~~Robber triggered on a 7~~
+  - ~~Move the robber to a chosen hex~~
+  - ~~Steal a resource from a chosen player~~
+  - ~~Player with excess resources robbed~~
+- ~~Resource cards~~
+  - ~~Create deck of cards~~
+  - ~~Shuffle deck~~
+  - ~~Draw card~~
+  - ~~Knight~~
+  - ~~Monopoly~~
+  - ~~Year of plenty~~
+  - ~~Road building~~
+- ~~Longest road~~
+  - ~~check for new settlement breaking longest road~~
+- ~~Largest army~~
+- ~~Winning~~

@@ -62,4 +62,84 @@ contract ResourcesTest is Test {
             "Bank should have 1 brick"
         );
     }
+
+    function testCreateResourceBytes5() public view {
+        // Test each resource type with different amounts
+
+        // Sheep (first position)
+        bytes5 sevenSheep = resources.createResourceBytes5(
+            Resources.ResourceTypes.Sheep,
+            7
+        );
+        assertEq(uint8(bytes1(sevenSheep[0])), 7); // First byte should be 7
+        assertEq(uint8(bytes1(sevenSheep[1])), 0); // Rest should be 0
+        assertEq(uint8(bytes1(sevenSheep[2])), 0);
+        assertEq(uint8(bytes1(sevenSheep[3])), 0);
+        assertEq(uint8(bytes1(sevenSheep[4])), 0);
+
+        // Brick (second position)
+        bytes5 tenBrick = resources.createResourceBytes5(
+            Resources.ResourceTypes.Brick,
+            10
+        );
+        assertEq(uint8(bytes1(tenBrick[0])), 0);
+        assertEq(uint8(bytes1(tenBrick[1])), 10); // Second byte should be 10
+        assertEq(uint8(bytes1(tenBrick[2])), 0);
+        assertEq(uint8(bytes1(tenBrick[3])), 0);
+        assertEq(uint8(bytes1(tenBrick[4])), 0);
+
+        // Test max value (255)
+        bytes5 maxWood = resources.createResourceBytes5(
+            Resources.ResourceTypes.Wood,
+            255
+        );
+        assertEq(uint8(bytes1(maxWood[0])), 0);
+        assertEq(uint8(bytes1(maxWood[1])), 0);
+        assertEq(uint8(bytes1(maxWood[2])), 255); // Third byte should be 255
+        assertEq(uint8(bytes1(maxWood[3])), 0);
+        assertEq(uint8(bytes1(maxWood[4])), 0);
+
+        // Test zero amount
+        bytes5 zeroStone = resources.createResourceBytes5(
+            Resources.ResourceTypes.Stone,
+            0
+        );
+        assertEq(uint8(bytes1(zeroStone[0])), 0);
+        assertEq(uint8(bytes1(zeroStone[1])), 0);
+        assertEq(uint8(bytes1(zeroStone[2])), 0);
+        assertEq(uint8(bytes1(zeroStone[3])), 0);
+        assertEq(uint8(bytes1(zeroStone[4])), 0);
+
+        // Test Unknown resource type
+        bytes5 unknown = resources.createResourceBytes5(
+            Resources.ResourceTypes.Unknown,
+            5
+        );
+        assertEq(uint8(bytes1(unknown[0])), 0);
+        assertEq(uint8(bytes1(unknown[1])), 0);
+        assertEq(uint8(bytes1(unknown[2])), 0);
+        assertEq(uint8(bytes1(unknown[3])), 0);
+        assertEq(uint8(bytes1(unknown[4])), 0);
+    }
+
+    // Test combining multiple resources
+    function testCombineResourceBytes5() public view {
+        bytes5 twoSheep = resources.createResourceBytes5(
+            Resources.ResourceTypes.Sheep,
+            2
+        );
+        bytes5 threeBrick = resources.createResourceBytes5(
+            Resources.ResourceTypes.Brick,
+            3
+        );
+
+        // Combine using OR
+        bytes5 combined = twoSheep | threeBrick;
+
+        assertEq(uint8(bytes1(combined[0])), 2); // Sheep
+        assertEq(uint8(bytes1(combined[1])), 3); // Brick
+        assertEq(uint8(bytes1(combined[2])), 0);
+        assertEq(uint8(bytes1(combined[3])), 0);
+        assertEq(uint8(bytes1(combined[4])), 0);
+    }
 }
