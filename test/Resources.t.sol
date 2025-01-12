@@ -3,6 +3,7 @@ pragma solidity 0.8.28;
 
 import {Test} from "forge-std/Test.sol";
 import {Resources} from "../src/Resources.sol";
+import {console2} from "forge-std/console2.sol";
 
 contract ResourcesTest is Test {
     Resources resources;
@@ -21,7 +22,7 @@ contract ResourcesTest is Test {
         resources = new Resources(bank);
 
         vm.prank(bank);
-        resources.setApprovalForPlayer(address(this));
+        resources.setApprovalForGamePlay(address(this));
 
         resources.safeTransferFrom(bank, player, SHEEP, 5, "");
         resources.safeTransferFrom(bank, player, BRICK, 5, "");
@@ -40,7 +41,7 @@ contract ResourcesTest is Test {
 
     function testBuyRoad() public {
         vm.prank(player);
-        resources.buyRoad();
+        resources.buyRoad(player);
         assertEq(
             resources.balanceOf(player, uint256(Resources.ResourceTypes.Wood)),
             4,
@@ -141,5 +142,40 @@ contract ResourcesTest is Test {
         assertEq(uint8(bytes1(combined[2])), 0);
         assertEq(uint8(bytes1(combined[3])), 0);
         assertEq(uint8(bytes1(combined[4])), 0);
+    }
+
+    function testCombineResources() public view {
+        bytes5 TWO_SHEEP_ONE_WHEAT = 0x0200000001; // 2 sheep, 1 wheat
+        bytes5 ONE_STONE_TWO_WHEAT = 0x0000010002; // 1 stone, 2 wheat
+
+        bytes5 combined = resources.combineResources(
+            TWO_SHEEP_ONE_WHEAT,
+            ONE_STONE_TWO_WHEAT
+        );
+
+        assertEq(
+            combined,
+            bytes5(0x0200010003),
+            "Should combine resources correctly"
+        );
+
+        // Test with zero
+        bytes5 ZERO;
+        assertEq(
+            resources.combineResources(TWO_SHEEP_ONE_WHEAT, ZERO),
+            TWO_SHEEP_ONE_WHEAT,
+            "Combining with zero should return original"
+        );
+
+        bytes5 combined2 = resources.combineResources(
+            ONE_STONE_TWO_WHEAT,
+            ONE_STONE_TWO_WHEAT
+        );
+
+        assertEq(
+            combined2,
+            bytes5(0x0000020004),
+            "Should combine resources correctly"
+        );
     }
 }

@@ -58,3 +58,37 @@ Application is written in Solidity version 0.8.18 and scaffolded with Foundry. T
   - ~~check for new settlement breaking longest road~~
 - ~~Largest army~~
 - ~~Winning~~
+
+## Deployment
+
+To deploy the contracts, run `forge script script/Deploy.s.sol`. This will deploy the contracts and set up the dependencies. Note that this is done by running the following command:
+
+```
+forge script script/Deploy.s.sol --rpc-url http://localhost:8545 --broadcast
+```
+
+This presumes a local anvil instance is running.
+
+## Testing
+
+To test the contracts, run `forge test`.
+
+## Contract Structure
+
+The follow contracts are deployed:
+
+1. Board - The board is the contract that holds the game state and the board structure. Board also emits events for board state changes - eg settlements, cities, roads, robber, etc.
+2. Resources - The resources contract is the contract that holds the resources for the game. It is an ERC1155 contract that holds the resources
+3. Roads - The roads contract handles management of rules like longest road and road placement requirements.
+4. DevelopmentCards - The development cards holds the development cards storage and play mechanisms.
+5. GamePlay - The gameplay contract is the primary contract, and holds core gameplay mechanics. It is the contract that is interacted with by players, and it emits events for game state changes and play events and actions - trading, robber, rolling, resource assignment, etc.
+
+These contracts can be seen to interact as shown in the deploy script, as they have some regrettable circular dependencies.
+
+These contracts are interacted with by the frontend UI located at [https://github.com/smallbatch-apps/catan-interface](https://github.com/smallbatch-apps/catan-interface).
+
+## TODO
+
+- [ ] Improve test coverage
+- [ ] Profile gas usage in highly complex functions
+- [ ] Optimise gas usage

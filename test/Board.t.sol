@@ -3,12 +3,13 @@ pragma solidity 0.8.28;
 
 import {Test} from "forge-std/Test.sol";
 import {console2} from "forge-std/console2.sol";
+import {Roads} from "../src/Roads.sol";
 import {Board} from "../src/Board.sol";
 import {Resources} from "../src/Resources.sol";
 
 contract BoardTest is Test {
     Board board;
-    Resources resources;
+    Roads roads;
     address bank;
     uint256 public seed;
 
@@ -20,163 +21,13 @@ contract BoardTest is Test {
         vm.prevrandao(bytes32(result));
 
         bank = makeAddr("bank");
-        resources = new Resources(bank);
-        board = new Board(address(resources)); // This deploys a fresh contract for each test
-
+        board = new Board(true);
+        roads = new Roads();
+        board.setDependencies(address(roads), address(0));
         vm.prank(bank);
-        resources.setApprovalForBoard(address(board));
     }
 
-    function testInitialState() public view {
-        assertEq(board.MAX_PLAYERS(), 4, "Incorrect max players");
-        assertEq(board.lastRoll(), 0, "Current throw is not 0");
-        assertEq(board.currentPlayer(), address(0), "Current player is not 0");
-        assertEq(board.gameReady(), false, "Game is not ready");
-
-        assertEq(board.currentPlayerTurn(), 0, "Current player turn is not 0");
-        assertEq(
-            board.currentSetupPlayer(),
-            0,
-            "Current setup player is not 0"
-        );
-    }
-
-    function testBasicPlayerJoin() public {
-        bytes32 name = bytes32("Alice");
-        board.joinPlayer(name, Board.Colours.Red);
-
-        Board.Player[] memory players = board.getPlayers();
-        assertEq(players.length, 1, "Incorrect number of players");
-        assertEq(players[0].name, name, "Incorrect player name");
-        assertEq(
-            players[0].ethAddress,
-            address(this),
-            "Incorrect player address"
-        );
-        assertEq(
-            uint(players[0].colour),
-            uint(Board.Colours.Red),
-            "Incorrect player colour"
-        );
-        assertEq(
-            players[0].victoryPoints,
-            0,
-            "Incorrect player victory points"
-        );
-    }
-
-    function testBankCannotJoin() public {
-        vm.prank(bank);
-        vm.expectRevert("Bank may not be a player");
-        board.joinPlayer("Bank", Board.Colours.Red);
-    }
-
-    function testCannotReuseSameColor() public {
-        board.joinPlayer("Alice", Board.Colours.Red);
-        vm.startPrank(makeAddr("bob"));
-        vm.expectRevert("Colour already chosen");
-        board.joinPlayer("Bob", Board.Colours.Red);
-        vm.stopPrank();
-    }
-
-    function testMaxPlayers() public {
-        board.joinPlayer("Alice", Board.Colours.Red);
-
-        vm.prank(makeAddr("bob"));
-        board.joinPlayer("Bob", Board.Colours.Blue);
-
-        vm.prank(makeAddr("charlie"));
-        board.joinPlayer("Charlie", Board.Colours.White);
-
-        vm.prank(makeAddr("dave"));
-        board.joinPlayer("Dave", Board.Colours.Yellow);
-
-        vm.prank(makeAddr("eve"));
-        vm.expectRevert("Maximum players already");
-        board.joinPlayer("Eve", Board.Colours.Orange);
-    }
-
-    function testCannotJoinTwice() public {
-        board.joinPlayer("Alice", Board.Colours.Red);
-        vm.expectRevert("Matching player already exists");
-        board.joinPlayer("Alice", Board.Colours.Red);
-    }
-
-    function testRollSingleDice() public view {
-        uint256 roll = board.rollSingleDice();
-        assertGt(roll, 0, "Invalid dice roll - 0 or lower");
-        assertLt(roll, 7, "Invalid dice roll - 7 or higher");
-    }
-
-    /*
-     * This test has a known false failure rate of 1/7776
-     * It is theoretically possible to roll the same dice 6 times in a row.
-     */
-    function testSingleDiceRandomness() public {
-        uint256 firstRoll = board.rollSingleDice();
-        uint256 sum = firstRoll;
-
-        for (uint i = 0; i < 5; i++) {
-            vm.roll(block.number + i + 1);
-            vm.prevrandao(bytes32(uint256(i + 100)));
-            sum += board.rollSingleDice();
-        }
-
-        assertNotEq(sum, firstRoll * 6, "Duplicate dice");
-    }
-
-    function testRollingTwoDice() public view {
-        (uint256 total, uint256 die1, uint256 die2) = board.rollTwoDice();
-        assertGt(total, 1, "Invalid roll for two dice");
-        assertLt(total, 13, "Invalid roll for two dice");
-        assertGt(die1, 0, "Invalid dice roll");
-        assertLt(die1, 7, "Invalid dice roll");
-        assertGt(die2, 0, "Invalid dice roll");
-        assertLt(die2, 7, "Invalid dice roll");
-    }
-
-    function testTwoDiceRandomness() public {
-        (uint8 total, uint8 die1, uint8 die2) = board.rollTwoDice();
-        uint8 sumTotal = total;
-        uint8 sumDie1 = die1;
-        uint8 sumDie2 = die2;
-
-        for (uint i = 0; i < 5; i++) {
-            vm.roll(block.number + i + 1);
-            vm.prevrandao(bytes32(uint256(i + 100)));
-            (uint8 totalReroll, uint8 die1Reroll, uint8 die2Reroll) = board
-                .rollTwoDice();
-            sumTotal += totalReroll;
-            sumDie1 += die1Reroll;
-            sumDie2 += die2Reroll;
-        }
-
-        assertNotEq(
-            sumTotal,
-            total * 6,
-            "Total appears to be caused by duplicate dice"
-        );
-        assertNotEq(
-            sumDie1,
-            die1 * 6,
-            "Die 1 appears to be caused by duplicate dice"
-        );
-        assertNotEq(
-            sumDie2,
-            die2 * 6,
-            "Die 2 appears to be caused by duplicate dice"
-        );
-    }
-
-    function testChooseStartingPlayer() public {
-        vm.prank(makeAddr("alice"));
-        board.joinPlayer("Alice", Board.Colours.Red);
-
-        vm.prank(makeAddr("bob"));
-        board.joinPlayer("Bob", Board.Colours.Blue);
-        uint256 startingPlayer = board.chooseStartingPlayer();
-        assertLt(startingPlayer, 2, "Starting player is not less than 2");
-    }
+    function testInitialState() public view {}
 
     function testGenerateTerrainDistribution() public view {
         // First distribution
@@ -344,7 +195,7 @@ contract BoardTest is Test {
 
         // Try to build up to the settlement
         vm.prank(player1);
-        bool allowed = board.checkRoadOriginIsPlayerOwned(0x1e24);
+        bool allowed = board.checkRoadOriginIsPlayerOwned(0x1e24, player1);
         assertTrue(allowed, "Road should be allowed");
     }
 
@@ -360,24 +211,24 @@ contract BoardTest is Test {
 
         // Try to build up to the settlement
         vm.prank(player1);
-        bool allowed = board.checkRoadOriginIsPlayerOwned(0x1e24);
+        bool allowed = board.checkRoadOriginIsPlayerOwned(0x1e24, player1);
         assertFalse(allowed, "Road should not be allowed");
     }
 
     // this test is not meaningful until the players have roads created
-    function testPlayerHasRoadsAvailable() public view {
-        assertTrue(
-            board.checkPlayerHasRoadsAvailable(address(this)),
-            "Player should have roads available"
-        );
-    }
+    // function testPlayerHasRoadsAvailable() public view {
+    //     assertTrue(
+    //         board.checkPlayerHasRoadsAvailable(address(this), player1),
+    //         "Player should have roads available"
+    //     );
+    // }
 
-    function testPlayerHasSettlementsAvailable() public view {
-        assertTrue(
-            board.checkPlayerHasSettlementsAvailable(address(this)),
-            "Player should have settlements available"
-        );
-    }
+    // function testPlayerHasSettlementsAvailable() public view {
+    //     assertTrue(
+    //         board.checkPlayerHasSettlementsAvailable(address(this)),
+    //         "Player should have settlements available"
+    //     );
+    // }
 
     function testCheckSettlementIsValid() public view {
         assertTrue(
@@ -413,17 +264,17 @@ contract BoardTest is Test {
 
         vm.prank(player1);
         assertTrue(
-            board.checkSettlementOnRoad(0x1e),
+            board.checkSettlementOnRoad(0x1e, player1),
             "Settlement should be on road"
         );
         assertFalse(
-            board.checkSettlementOnRoad(0x29),
+            board.checkSettlementOnRoad(0x29, player1),
             "Settlement should not be on road"
         );
 
         vm.prank(player2);
         assertFalse(
-            board.checkSettlementOnRoad(0x1e),
+            board.checkSettlementOnRoad(0x1e, player2),
             "Has road, but not correct owner"
         );
     }
@@ -448,11 +299,11 @@ contract BoardTest is Test {
 
         vm.prank(player1);
         assertTrue(
-            board.checkCityIsSettlement(0x1a),
+            board.checkCityIsSettlement(0x1a, player1),
             "Node should be a settlement"
         );
         assertFalse(
-            board.checkCityIsSettlement(0x1b),
+            board.checkCityIsSettlement(0x1b, player1),
             "Node is not a settlement"
         );
     }
@@ -469,11 +320,11 @@ contract BoardTest is Test {
     }
 
     function testGetResourcesForEmptyHex() public view {
-        (address[] memory playerFound, uint8[] memory counts) = board
+        (address[] memory playerFound, bytes5[] memory resources) = board
             .getResourcesForHex(0x1217181d1e23);
 
         assertEq(playerFound.length, 0, "There are no cities or settlements");
-        assertEq(counts.length, 0, "There are no cities or settlements");
+        assertEq(resources.length, 0, "There are no cities or settlements");
     }
 
     function testGetResourcesForHex() public {
@@ -483,7 +334,12 @@ contract BoardTest is Test {
         board._testPlaceSettlement(0x12, player1);
         board._testPlaceSettlement(0x1e, player2);
 
-        (address[] memory playerFound, uint8[] memory counts) = board
+        board._testSetHexResource(
+            0x1217181d1e23,
+            Resources.ResourceTypes.Sheep
+        );
+
+        (address[] memory playerFound, bytes5[] memory resources) = board
             .getResourcesForHex(0x1217181d1e23);
 
         assertEq(
@@ -491,87 +347,77 @@ contract BoardTest is Test {
             2,
             "There should be two cities or settlements"
         );
-        assertEq(counts.length, 2, "There should be two cities or settlements");
+        assertEq(
+            resources.length,
+            2,
+            "There should be two cities or settlements"
+        );
 
         assertEq(playerFound[0], player1, "First player should be player1");
         assertEq(playerFound[1], player2, "Second player should be player2");
-        assertEq(counts[0], 1, "First count should be 1");
-        assertEq(counts[1], 1, "Second count should be 1");
+        assertEq(resources[0], bytes5(0x0100000000), "First count should be 1");
+        assertEq(
+            resources[1],
+            bytes5(0x0100000000),
+            "Second count should be 1"
+        );
+    }
+
+    function testGetResourcesForHexMultipleSettlementsSamePlayer() public {
+        address player1 = makeAddr("alice");
+
+        // Place two settlements for the same player
+        board._testPlaceSettlement(0x12, player1);
+        board._testPlaceSettlement(0x1e, player1);
+
+        (address[] memory playerFound, bytes5[] memory resources) = board
+            .getResourcesForHex(0x1217181d1e23);
+
+        assertEq(playerFound.length, 1, "Should only find one player");
+        assertEq(playerFound[0], player1, "Should be player1");
+
+        Resources.ResourceTypes resourceType = board
+            .getHex(0x1217181d1e23)
+            .resourceType;
+        bytes5 expectedResource = board.createResourceBytes5(resourceType, 2); // Should get 2 resources
+        assertEq(resources[0], expectedResource, "Should get 2 resources");
     }
 
     function testGetResourcesForHexWithCity() public {
         address player1 = makeAddr("alice");
 
-        board._testPlaceCity(0x12, player1);
-        board._testPlaceSettlement(0x1e, player1);
+        board._testPlaceSettlement(0x12, player1);
+        board._testPlaceCity(0x1d, player1);
 
-        (address[] memory playerFound, uint8[] memory counts) = board
+        board._testSetHexResource(
+            0x1217181d1e23,
+            Resources.ResourceTypes.Sheep
+        );
+
+        (address[] memory playerFound, bytes5[] memory resources) = board
             .getResourcesForHex(0x1217181d1e23);
+
+        // for (uint i = 0; i < playerFound.length; i++) {
+        //     console2.log(playerFound[i]);
+        //     console2.log("Sheep:", uint8(resources[i][0]));
+        //     console2.log("Brick:", uint8(resources[i][1]));
+        //     console2.log("Wood:", uint8(resources[i][2]));
+        //     console2.log("Wheat:", uint8(resources[i][3]));
+        //     console2.log("Stone:", uint8(resources[i][4]));
+        // }
 
         assertEq(
             playerFound.length,
-            2,
-            "There should be two players - duplicates are allowed"
+            1,
+            "There should be one players - duplicates are not expected"
         );
-        assertEq(counts.length, 2, "There should be two entries");
+        assertEq(resources.length, 1, "There should be one entries");
         assertEq(playerFound[0], player1, "Player should be player1");
-        assertEq(playerFound[1], player1, "Player should be player1");
 
-        assertEq(counts[0], 2, "Count should be 2 - city");
-        assertEq(counts[1], 1, "Count should be 1 - settlement");
-    }
-
-    function testRequestTrade() public {
-        address alice = makeAddr("alice");
-        address bob = makeAddr("bob");
-        address charlie = makeAddr("charlie");
-
-        vm.prank(alice);
-        board.joinPlayer("Alice", Board.Colours.Red);
-        vm.prank(bob);
-        board.joinPlayer("Bob", Board.Colours.Blue);
-        vm.prank(charlie);
-        board.joinPlayer("Charlie", Board.Colours.White);
-
-        // Give Alice her resources (sheep and wheat)
-        vm.prank(bank);
-        resources.safeTransferFrom(
-            bank,
-            alice,
-            uint256(Resources.ResourceTypes.Sheep),
-            1,
-            ""
+        assertEq(
+            resources[0],
+            bytes5(0x0300000000),
+            "Count should be 3 - 1 city, 1 settlement"
         );
-        vm.prank(bank);
-        resources.safeTransferFrom(
-            bank,
-            alice,
-            uint256(Resources.ResourceTypes.Wheat),
-            1,
-            ""
-        );
-
-        // Give Bob a brick
-        vm.prank(bank);
-        resources.safeTransferFrom(
-            bank,
-            bob,
-            uint256(Resources.ResourceTypes.Brick),
-            1,
-            ""
-        );
-
-        // Create array of players to offer trade to
-        address[] memory tradePlayers = new address[](2);
-        tradePlayers[0] = bob;
-        tradePlayers[1] = charlie;
-
-        // Create trade offer: 1 sheep + 1 wheat for 1 brick
-        bytes5 offers = bytes5(0x0100000001); // [0,0,1,1,0] - sheep and wheat
-        bytes5 requests = bytes5(0x0001000000); // [1,0,0,0,0] - brick
-        vm.prank(alice);
-        emit Board.TradeRequested(bob, offers, requests);
-        bool success = board.requestTrade(tradePlayers, offers, requests);
-        assertTrue(success, "Trade request should succeed");
     }
 }

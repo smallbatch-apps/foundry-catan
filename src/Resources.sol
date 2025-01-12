@@ -33,37 +33,32 @@ contract Resources is ERC1155 {
         _mint(bank, uint(ResourceTypes.Wheat), MAX_RESOURCES, "");
     }
 
-    function setApprovalForBoard(address boardContract) external {
-        require(msg.sender == bank, "Only bank can set board approval");
-        setApprovalForAll(boardContract, true);
+    function setApprovalForGamePlay(address gameplayContract) external {
+        require(msg.sender == bank, "Only bank can set gameplay approval");
+        setApprovalForAll(gameplayContract, true);
     }
 
-    function setApprovalForPlayer(address boardContract) external {
-        require(msg.sender == bank, "Only bank can set board approval");
-        setApprovalForAll(boardContract, true);
+    function buyRoad(address player) public {
+        safeTransferFrom(player, bank, uint256(ResourceTypes.Wood), 1, "");
+        safeTransferFrom(player, bank, uint256(ResourceTypes.Brick), 1, "");
     }
 
-    function buyRoad() public {
-        safeTransferFrom(msg.sender, bank, uint256(ResourceTypes.Wood), 1, "");
-        safeTransferFrom(msg.sender, bank, uint256(ResourceTypes.Brick), 1, "");
+    function buySettlement(address player) public {
+        safeTransferFrom(player, bank, uint256(ResourceTypes.Wood), 1, "");
+        safeTransferFrom(player, bank, uint256(ResourceTypes.Brick), 1, "");
+        safeTransferFrom(player, bank, uint256(ResourceTypes.Wheat), 1, "");
+        safeTransferFrom(player, bank, uint256(ResourceTypes.Sheep), 1, "");
     }
 
-    function buySettlement() public {
-        safeTransferFrom(msg.sender, bank, uint256(ResourceTypes.Wood), 1, "");
-        safeTransferFrom(msg.sender, bank, uint256(ResourceTypes.Brick), 1, "");
-        safeTransferFrom(msg.sender, bank, uint256(ResourceTypes.Wheat), 1, "");
-        safeTransferFrom(msg.sender, bank, uint256(ResourceTypes.Sheep), 1, "");
+    function buyCity(address player) public {
+        safeTransferFrom(player, bank, uint256(ResourceTypes.Stone), 2, "");
+        safeTransferFrom(player, bank, uint256(ResourceTypes.Wheat), 3, "");
     }
 
-    function buyCity() public {
-        safeTransferFrom(msg.sender, bank, uint256(ResourceTypes.Stone), 2, "");
-        safeTransferFrom(msg.sender, bank, uint256(ResourceTypes.Wheat), 3, "");
-    }
-
-    function buyDevelopmentCard() public {
-        safeTransferFrom(msg.sender, bank, uint256(ResourceTypes.Wheat), 1, "");
-        safeTransferFrom(msg.sender, bank, uint256(ResourceTypes.Stone), 1, "");
-        safeTransferFrom(msg.sender, bank, uint256(ResourceTypes.Sheep), 1, "");
+    function buyDevelopmentCard(address player) public {
+        safeTransferFrom(player, bank, uint256(ResourceTypes.Wheat), 1, "");
+        safeTransferFrom(player, bank, uint256(ResourceTypes.Stone), 1, "");
+        safeTransferFrom(player, bank, uint256(ResourceTypes.Sheep), 1, "");
     }
 
     function resourceFromBank(
@@ -139,6 +134,16 @@ contract Resources is ERC1155 {
         }
     }
 
+    function combineResources(bytes5 a, bytes5 b) public pure returns (bytes5) {
+        bytes5 result;
+        for (uint8 i = 0; i < 5; i++) {
+            uint8 aAmount = uint8(uint40(a) >> (i * 8));
+            uint8 bAmount = uint8(uint40(b) >> (i * 8));
+            result |= bytes5(uint40(aAmount + bAmount) << (i * 8));
+        }
+        return result;
+    }
+
     function splitTradeResources(
         bytes5 tradeResources
     ) public pure returns (uint256[] memory) {
@@ -179,13 +184,15 @@ contract Resources is ERC1155 {
         return uint8(bytes1(b));
     }
 
-    function getPlayerResources() public view returns (uint256[] memory) {
+    function getPlayerResources(
+        address player
+    ) public view returns (uint256[] memory) {
         uint256[] memory balances = new uint256[](5);
-        balances[0] = balanceOf(msg.sender, uint256(ResourceTypes.Sheep));
-        balances[1] = balanceOf(msg.sender, uint256(ResourceTypes.Brick));
-        balances[2] = balanceOf(msg.sender, uint256(ResourceTypes.Wood));
-        balances[3] = balanceOf(msg.sender, uint256(ResourceTypes.Stone));
-        balances[4] = balanceOf(msg.sender, uint256(ResourceTypes.Wheat));
+        balances[0] = balanceOf(player, uint256(ResourceTypes.Sheep));
+        balances[1] = balanceOf(player, uint256(ResourceTypes.Brick));
+        balances[2] = balanceOf(player, uint256(ResourceTypes.Wood));
+        balances[3] = balanceOf(player, uint256(ResourceTypes.Stone));
+        balances[4] = balanceOf(player, uint256(ResourceTypes.Wheat));
 
         return balances;
     }
