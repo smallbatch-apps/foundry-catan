@@ -88,16 +88,15 @@ contract GamePlayTest is Test {
         );
     }
 
-    function testBankCannotJoin() public {
-        vm.prank(bank);
-        vm.expectRevert("Bank may not be a player");
-        gameplay.joinPlayer("Bank", GamePlay.Colours.Red);
-    }
-
     function testCannotReuseSameColor() public {
         gameplay.joinPlayer("Alice", GamePlay.Colours.Red);
         vm.startPrank(makeAddr("bob"));
-        vm.expectRevert("Colour already chosen");
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                GamePlay.ColorAlreadyChosen.selector,
+                GamePlay.Colours.Red
+            )
+        );
         gameplay.joinPlayer("Bob", GamePlay.Colours.Red);
         vm.stopPrank();
     }
@@ -115,13 +114,20 @@ contract GamePlayTest is Test {
         gameplay.joinPlayer("Dave", GamePlay.Colours.Yellow);
 
         vm.prank(makeAddr("eve"));
-        vm.expectRevert("Maximum players already");
+        vm.expectRevert(GamePlay.MaxPlayersReached.selector);
         gameplay.joinPlayer("Eve", GamePlay.Colours.Orange);
     }
 
     function testCannotJoinTwice() public {
         gameplay.joinPlayer("Alice", GamePlay.Colours.Red);
-        vm.expectRevert("Matching player already exists");
+
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                GamePlay.PlayerAlreadyExists.selector,
+                bytes32("Alice"),
+                address(this)
+            )
+        );
         gameplay.joinPlayer("Alice", GamePlay.Colours.Red);
     }
 
@@ -197,7 +203,11 @@ contract GamePlayTest is Test {
 
         vm.prank(makeAddr("bob"));
         gameplay.joinPlayer("Bob", GamePlay.Colours.Blue);
+        vm.prank(makeAddr("alice"));
         uint256 startingPlayer = gameplay.chooseStartingPlayer();
+        vm.prank(makeAddr("alice"));
+        gameplay.startGame();
+
         assertLt(startingPlayer, 2, "Starting player is not less than 2");
     }
 

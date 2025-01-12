@@ -108,6 +108,10 @@ contract GamePlay is Ownable {
         // set approval for the board to act as an ERC1155 operator
         _resources.setApprovalForAll(address(this), true);
 
+        if (playerAddresses.length == 0) {
+            _board.setBoardStatus(Board.BoardStatus.FindingPlayers);
+        }
+
         players[msg.sender] = Player(
             name,
             msg.sender,
@@ -196,7 +200,7 @@ contract GamePlay is Ownable {
     }
 
     function chooseStartingPlayer() public view returns (uint256) {
-        if (playerAddresses.length > 0) {
+        if (playerAddresses.length == 0) {
             revert InvalidGameState(
                 _board.boardStatus(),
                 Board.BoardStatus.FindingPlayers
@@ -215,8 +219,9 @@ contract GamePlay is Ownable {
     }
 
     function startGame() public {
-        if (msg.sender != players[currentPlayer].ethAddress)
+        if (msg.sender != players[playerAddresses[0]].ethAddress) {
             revert InvalidPlayer(msg.sender);
+        }
         if (_board.boardStatus() != Board.BoardStatus.FindingPlayers) {
             revert InvalidGameState(
                 _board.boardStatus(),
@@ -229,7 +234,7 @@ contract GamePlay is Ownable {
     function selectStartingPlayer() public returns (address) {
         if (
             playerAddresses.length < 2 ||
-            _board.boardStatus() < Board.BoardStatus.HasRolls
+            _board.boardStatus() < Board.BoardStatus.FindingPlayers
         ) {
             revert InvalidGameState(
                 _board.boardStatus(),
@@ -328,9 +333,6 @@ contract GamePlay is Ownable {
         ) {
             revert InsufficientResources(msg.sender, SETTLEMENT_RESOURCES);
         }
-        // if (!checkPlayerHasResourcesForSettlement(msg.sender)) {
-        //     revert InsufficientResources(msg.sender, SETTLEMENT_RESOURCES);
-        // }
 
         if (!checkPlayerHasSettlementsAvailable(msg.sender)) {
             revert BuildingLimitReached(msg.sender, "settlement");

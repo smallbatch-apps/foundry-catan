@@ -126,23 +126,6 @@ contract BoardTest is Test {
             counts[allHexes[i].roll]++;
         }
 
-        // hacked this into place to generate some output to paste into ui to check representation of board
-        bool logBoardState = true;
-        if (logBoardState) {
-            console2.log("=== BOARD STATE ===");
-            for (uint i = 0; i < allHexes.length; i++) {
-                console2.log("{");
-                console2.log(
-                    "  resourceType:",
-                    uint(allHexes[i].resourceType),
-                    ","
-                );
-
-                console2.log("  roll:", allHexes[i].roll, ",");
-                console2.log("  hasRobber:", allHexes[i].hasRobber);
-                console2.log("},");
-            }
-        }
         // Verify counts
         assertEq(counts[0], 1, "Should have one 0");
         assertEq(counts[1], 0, "Should have no 1s");
@@ -379,7 +362,9 @@ contract BoardTest is Test {
         Resources.ResourceTypes resourceType = board
             .getHex(0x1217181d1e23)
             .resourceType;
-        bytes5 expectedResource = board.createResourceBytes5(resourceType, 2); // Should get 2 resources
+
+        bytes5 expectedResource = board.createResourceBytes5(resourceType, 2);
+
         assertEq(resources[0], expectedResource, "Should get 2 resources");
     }
 
@@ -396,15 +381,6 @@ contract BoardTest is Test {
 
         (address[] memory playerFound, bytes5[] memory resources) = board
             .getResourcesForHex(0x1217181d1e23);
-
-        // for (uint i = 0; i < playerFound.length; i++) {
-        //     console2.log(playerFound[i]);
-        //     console2.log("Sheep:", uint8(resources[i][0]));
-        //     console2.log("Brick:", uint8(resources[i][1]));
-        //     console2.log("Wood:", uint8(resources[i][2]));
-        //     console2.log("Wheat:", uint8(resources[i][3]));
-        //     console2.log("Stone:", uint8(resources[i][4]));
-        // }
 
         assertEq(
             playerFound.length,
