@@ -36,6 +36,7 @@ contract GamePlayTest is Test {
             address(roads),
             address(developmentCards)
         );
+        gameplay.enableTestMode();
         roads.setGamePlay(address(gameplay));
         developmentCards.setGamePlay(address(gameplay));
         vm.prank(bank);
@@ -129,86 +130,6 @@ contract GamePlayTest is Test {
             )
         );
         gameplay.joinPlayer("Alice", GamePlay.Colours.Red);
-    }
-
-    // function testRollSingleDice() public view {
-    //     uint256 roll = board.rollSingleDice();
-    //     assertGt(roll, 0, "Invalid dice roll - 0 or lower");
-    //     assertLt(roll, 7, "Invalid dice roll - 7 or higher");
-    // }
-
-    /*
-     * This test has a known false failure rate of 1/7776
-     * It is theoretically possible to roll the same dice 6 times in a row.
-     */
-    // function testSingleDiceRandomness() public {
-    //     uint256 firstRoll = board.rollSingleDice();
-    //     uint256 sum = firstRoll;
-
-    //     for (uint i = 0; i < 5; i++) {
-    //         vm.roll(block.number + i + 1);
-    //         vm.prevrandao(bytes32(uint256(i + 100)));
-    //         sum += board.rollSingleDice();
-    //     }
-
-    //     assertNotEq(sum, firstRoll * 6, "Duplicate dice");
-    // }
-
-    // function testRollingTwoDice() public view {
-    //     (uint256 total, uint256 die1, uint256 die2) = board.rollTwoDice();
-    //     assertGt(total, 1, "Invalid roll for two dice");
-    //     assertLt(total, 13, "Invalid roll for two dice");
-    //     assertGt(die1, 0, "Invalid dice roll");
-    //     assertLt(die1, 7, "Invalid dice roll");
-    //     assertGt(die2, 0, "Invalid dice roll");
-    //     assertLt(die2, 7, "Invalid dice roll");
-    // }
-
-    // function testTwoDiceRandomness() public {
-    //     (uint8 total, uint8 die1, uint8 die2) = board.rollTwoDice();
-    //     uint8 sumTotal = total;
-    //     uint8 sumDie1 = die1;
-    //     uint8 sumDie2 = die2;
-
-    //     for (uint i = 0; i < 5; i++) {
-    //         vm.roll(block.number + i + 1);
-    //         vm.prevrandao(bytes32(uint256(i + 100)));
-    //         (uint8 totalReroll, uint8 die1Reroll, uint8 die2Reroll) = board
-    //             .rollTwoDice();
-    //         sumTotal += totalReroll;
-    //         sumDie1 += die1Reroll;
-    //         sumDie2 += die2Reroll;
-    //     }
-
-    //     assertNotEq(
-    //         sumTotal,
-    //         total * 6,
-    //         "Total appears to be caused by duplicate dice"
-    //     );
-    //     assertNotEq(
-    //         sumDie1,
-    //         die1 * 6,
-    //         "Die 1 appears to be caused by duplicate dice"
-    //     );
-    //     assertNotEq(
-    //         sumDie2,
-    //         die2 * 6,
-    //         "Die 2 appears to be caused by duplicate dice"
-    //     );
-    // }
-
-    function testChooseStartingPlayer() public {
-        vm.prank(makeAddr("alice"));
-        gameplay.joinPlayer("Alice", GamePlay.Colours.Red);
-
-        vm.prank(makeAddr("bob"));
-        gameplay.joinPlayer("Bob", GamePlay.Colours.Blue);
-        vm.prank(makeAddr("alice"));
-        uint256 startingPlayer = gameplay.chooseStartingPlayer();
-        vm.prank(makeAddr("alice"));
-        gameplay.startGame();
-
-        assertLt(startingPlayer, 2, "Starting player is not less than 2");
     }
 
     function testRequestTrade() public {

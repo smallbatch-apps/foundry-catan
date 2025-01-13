@@ -15,6 +15,8 @@ contract GamePlay is Ownable {
     Board private _board;
     DevelopmentCards private _developmentCards;
 
+    bool testMode = false;
+
     uint8 public lastRoll = 0;
     address public currentPlayer = address(0);
     bool public gameReady = false;
@@ -199,50 +201,30 @@ contract GamePlay is Ownable {
         return playerAddresses;
     }
 
-    function chooseStartingPlayer() public view returns (uint256) {
-        if (playerAddresses.length == 0) {
-            revert InvalidGameState(
-                _board.boardStatus(),
-                Board.BoardStatus.FindingPlayers
-            );
-        }
-        return
-            uint256(
-                keccak256(abi.encodePacked(block.prevrandao, "startingPlayer"))
-            ) % playerAddresses.length;
-    }
-
-    function playerApprovesBoard() public {
-        if (players[msg.sender].hasApproved) revert InvalidPlayer(msg.sender);
-        _resources.setApprovalForAll(address(this), true);
-        players[msg.sender].hasApproved = true;
-    }
+    // function playerApprovesBoard() public {
+    //     if (players[msg.sender].hasApproved) revert InvalidPlayer(msg.sender);
+    //     _resources.setApprovalForAll(address(this), true);
+    //     players[msg.sender].hasApproved = true;
+    // }
 
     function startGame() public {
         if (msg.sender != players[playerAddresses[0]].ethAddress) {
             revert InvalidPlayer(msg.sender);
         }
-        if (_board.boardStatus() != Board.BoardStatus.FindingPlayers) {
-            revert InvalidGameState(
-                _board.boardStatus(),
-                Board.BoardStatus.FindingPlayers
-            );
-        }
-        _board.setBoardStatus(Board.BoardStatus.InitialPlacement);
-    }
-
-    function selectStartingPlayer() public returns (address) {
         if (
             playerAddresses.length < 2 ||
-            _board.boardStatus() < Board.BoardStatus.FindingPlayers
+            _board.boardStatus() != Board.BoardStatus.FindingPlayers
         ) {
             revert InvalidGameState(
                 _board.boardStatus(),
                 Board.BoardStatus.FindingPlayers
             );
         }
+        selectStartingPlayer();
+        _board.setBoardStatus(Board.BoardStatus.InitialPlacement);
+    }
 
-        // pick one of the players at random
+    function selectStartingPlayer() internal {
         currentPlayerTurn = uint8(
             uint256(keccak256(abi.encodePacked(block.prevrandao))) %
                 playerAddresses.length
@@ -250,8 +232,6 @@ contract GamePlay is Ownable {
         currentPlayer = playerAddresses[currentPlayerTurn];
 
         _board.setBoardStatus(Board.BoardStatus.InitialPlacement);
-
-        return currentPlayer;
     }
 
     function tradeResourcesWithBank(
@@ -382,7 +362,7 @@ contract GamePlay is Ownable {
         testWinConditions();
     }
 
-    function assignResourcesOnRoll(uint8 roll) public {
+    function assignResourcesOnRoll(uint8 roll) internal {
         bytes6[] memory rolledHexes = _board.getHexesForRoll(roll);
 
         for (uint i = 0; i < rolledHexes.length; i++) {
@@ -750,6 +730,7 @@ contract GamePlay is Ownable {
         robber.needsMovement = true;
         robber.needsStealTarget = true;
         emit RobberRolled();
+        checkForRobbedPlayers();
         emit PlayerMustMoveRobber(msg.sender);
     }
 
@@ -846,6 +827,17 @@ contract GamePlay is Ownable {
             msg.sender
         );
         _roads.setFreeRoads(msg.sender, 2);
+    }
+
+    // ============== TESTING ==============
+
+    function enableTestMode() public onlyOwner {
+        testMode = true;
+    }
+
+    function _testAssignResourcesOnRoll(uint8 roll) public {
+        if (!testMode) revert InvalidAction("Test mode not enabled");
+        assignResourcesOnRoll(roll);
     }
 
     modifier onlyCurrentPlayer() {
